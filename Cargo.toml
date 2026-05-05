@@ -1,6 +1,6 @@
 [package]
 name = "cacache-ttl"
-version = "0.1.3"
+version = "0.2.0"
 edition = "2024"
 authors = ["Pol Dellaiera <pol.dellaiera@protonmail.com>"]
 homepage = "https://github.com/drupol/cacache-ttl"
@@ -13,6 +13,8 @@ description = "TTL decorator for cacache."
 
 [dependencies]
 cacache = { version = "13.1.0", default-features = false, features = ["mmap", "tokio-runtime"] }
+miette = "5.7.0"
+thiserror = "1.0.40"
 
 [dev-dependencies]
 tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }

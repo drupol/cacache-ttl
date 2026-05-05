@@ -19,7 +19,7 @@ Synchronous:
 ```rust
 use std::time::Duration;
 
-fn main() -> cacache::Result<()> {
+fn main() -> cacache_ttl::Result<()> {
     let cache = "./target/example-cache";
     let key = "github-response";
 
@@ -37,7 +37,7 @@ Asynchronous:
 use std::time::Duration;
 
 #[tokio::main]
-async fn main() -> cacache::Result<()> {
+async fn main() -> cacache_ttl::Result<()> {
     let cache = "./target/example-cache";
     let key = "github-response";
 
@@ -52,8 +52,9 @@ async fn main() -> cacache::Result<()> {
 ## Expiration Behavior
 
 Expired entries are removed from the `cacache` index with `cacache::remove` /
-`cacache::remove_sync`, then returned as `cacache::Error::EntryNotFound`,
-matching the miss behavior used by `cacache`.
+`cacache::remove_sync`, then returned as
+`cacache_ttl::Error::EntryNotFoundOrExpired`, which is also used for missing
+entries.
 
 `cacache::remove` removes the index entry only; the content-addressed bytes may
 remain in the cache until normal cache maintenance clears unused content.
@@ -68,6 +69,7 @@ metadata for the key, then adds or updates `expires_at_millis`.
 - `list_sync(cache)`: synchronous TTL-aware index listing.
 - `write(cache, key, data, ttl)`: async write with TTL.
 - `write_sync(cache, key, data, ttl)`: synchronous write with TTL.
+- `Error::EntryNotFoundOrExpired(cache, key)`: missing or expired cache entry.
 
 [decorator]: https://en.wikipedia.org/wiki/Decorator_pattern
 [GitHub stars]: https://img.shields.io/github/stars/drupol/cacache-ttl.svg?style=flat-square
