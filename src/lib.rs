@@ -7,8 +7,8 @@
 //!
 //! Expired entries are removed from the `cacache` index with
 //! [`cacache::remove`] / [`cacache::remove_sync`] and then surfaced as
-//! [`cacache::Error::EntryNotFound`], matching how `cacache` reports cache
-//! misses.
+//! [`Error::EntryNotFoundOrExpired`], making cache misses and expired entries
+//! explicit while still forwarding other `cacache` errors.
 //!
 //! # Examples
 //!
@@ -17,7 +17,7 @@
 //! ```no_run
 //! use std::time::Duration;
 //!
-//! # async fn example() -> cacache::Result<()> {
+//! # async fn example() -> cacache_ttl::Result<()> {
 //! cacache_ttl::write("./target/example-cache", "key", b"value", Duration::from_secs(60)).await?;
 //! let value = cacache_ttl::read("./target/example-cache", "key").await?;
 //! assert_eq!(value, b"value");
@@ -33,7 +33,7 @@
 //! cacache_ttl::write_sync("./target/example-cache", "key", b"value", Duration::from_secs(60))?;
 //! let value = cacache_ttl::read_sync("./target/example-cache", "key")?;
 //! assert_eq!(value, b"value");
-//! # Ok::<(), cacache::Error>(())
+//! # Ok::<(), cacache_ttl::Error>(())
 //! ```
 
 use std::{
@@ -42,6 +42,9 @@ use std::{
 };
 
 use cacache::{Integrity, Metadata, Value};
+
+mod error;
+pub use error::{Error, Result};
 
 const EXPIRES_AT_MILLIS: &str = "expires_at_millis";
 
@@ -53,22 +56,22 @@ const EXPIRES_AT_MILLIS: &str = "expires_at_millis";
 ///
 /// # Errors
 ///
-/// Returns [`cacache::Error::EntryNotFound`] when the entry does not exist or
+/// Returns [`Error::EntryNotFoundOrExpired`] when the entry does not exist or
 /// when it has expired. Other errors, including removal errors for expired
-/// entries, are forwarded from `cacache`.
+/// entries, are forwarded from `cacache` as [`Error::Cacache`].
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # use std::time::Duration;
-/// # async fn example() -> cacache::Result<()> {
+/// # async fn example() -> cacache_ttl::Result<()> {
 /// cacache_ttl::write("./target/example-cache", "key", b"value", Duration::from_secs(60)).await?;
 /// let value = cacache_ttl::read("./target/example-cache", "key").await?;
 /// assert_eq!(value, b"value");
 /// # Ok(())
 /// # }
 /// ```
-pub async fn read<P, K>(cache: P, key: K) -> cacache::Result<Vec<u8>>
+pub async fn read<P, K>(cache: P, key: K) -> Result<Vec<u8>>
 where
     P: AsRef<Path>,
     K: AsRef<str>,
@@ -84,7 +87,7 @@ where
         return Err(entry_not_found(cache, key));
     }
 
-    cacache::read(cache, key).await
+    Ok(cacache::read(cache, key).await?)
 }
 
 /// Reads a cache entry synchronously and validates its TTL metadata.
@@ -95,9 +98,9 @@ where
 ///
 /// # Errors
 ///
-/// Returns [`cacache::Error::EntryNotFound`] when the entry does not exist or
+/// Returns [`Error::EntryNotFoundOrExpired`] when the entry does not exist or
 /// when it has expired. Other errors, including removal errors for expired
-/// entries, are forwarded from `cacache`.
+/// entries, are forwarded from `cacache` as [`Error::Cacache`].
 ///
 /// # Examples
 ///
@@ -106,9 +109,9 @@ where
 /// cacache_ttl::write_sync("./target/example-cache", "key", b"value", Duration::from_secs(60))?;
 /// let value = cacache_ttl::read_sync("./target/example-cache", "key")?;
 /// assert_eq!(value, b"value");
-/// # Ok::<(), cacache::Error>(())
+/// # Ok::<(), cacache_ttl::Error>(())
 /// ```
-pub fn read_sync<P, K>(cache: P, key: K) -> cacache::Result<Vec<u8>>
+pub fn read_sync<P, K>(cache: P, key: K) -> Result<Vec<u8>>
 where
     P: AsRef<Path>,
     K: AsRef<str>,
@@ -124,7 +127,7 @@ where
         return Err(entry_not_found(cache, key));
     }
 
-    cacache::read_sync(cache, key)
+    Ok(cacache::read_sync(cache, key)?)
 }
 
 /// Lists non-expired cache index entries synchronously.
@@ -137,7 +140,8 @@ where
 ///
 /// # Errors
 ///
-/// Iterator items forward errors from `cacache` listing and removal.
+/// Iterator items forward errors from `cacache` listing and removal as
+/// [`Error::Cacache`].
 ///
 /// # Examples
 ///
@@ -146,11 +150,11 @@ where
 /// cacache_ttl::write_sync("./target/example-cache", "key", b"value", Duration::from_secs(60))?;
 /// let keys = cacache_ttl::list_sync("./target/example-cache")
 ///     .map(|entry| entry.map(|entry| entry.key))
-///     .collect::<cacache::Result<Vec<_>>>()?;
+///     .collect::<cacache_ttl::Result<Vec<_>>>()?;
 /// assert!(keys.contains(&"key".to_owned()));
-/// # Ok::<(), cacache::Error>(())
+/// # Ok::<(), cacache_ttl::Error>(())
 /// ```
-pub fn list_sync<P>(cache: P) -> impl Iterator<Item = cacache::Result<Metadata>>
+pub fn list_sync<P>(cache: P) -> impl Iterator<Item = Result<Metadata>>
 where
     P: AsRef<Path>,
 {
@@ -159,10 +163,10 @@ where
         Ok(metadata) if is_expired(&metadata) => {
             match cacache::remove_sync(&cache, &metadata.key) {
                 Ok(()) => None,
-                Err(error) => Some(Err(error)),
+                Err(error) => Some(Err(error.into())),
             }
         }
-        other => Some(other),
+        other => Some(other.map_err(Into::into)),
     })
 }
 
@@ -177,13 +181,14 @@ where
 ///
 /// # Errors
 ///
-/// Forwards errors from `cacache` content writes and index updates.
+/// Forwards errors from `cacache` content writes and index updates as
+/// [`Error::Cacache`].
 ///
 /// # Examples
 ///
 /// ```no_run
 /// # use std::time::Duration;
-/// # async fn example() -> cacache::Result<()> {
+/// # async fn example() -> cacache_ttl::Result<()> {
 /// let integrity =
 ///     cacache_ttl::write("./target/example-cache", "key", b"value", Duration::from_secs(60))
 ///         .await?;
@@ -191,7 +196,7 @@ where
 /// # Ok(())
 /// # }
 /// ```
-pub async fn write<P, D, K>(cache: P, key: K, data: D, ttl: Duration) -> cacache::Result<Integrity>
+pub async fn write<P, D, K>(cache: P, key: K, data: D, ttl: Duration) -> Result<Integrity>
 where
     P: AsRef<Path>,
     D: AsRef<[u8]>,
@@ -220,7 +225,8 @@ where
 ///
 /// # Errors
 ///
-/// Forwards errors from `cacache` content writes and index updates.
+/// Forwards errors from `cacache` content writes and index updates as
+/// [`Error::Cacache`].
 ///
 /// # Examples
 ///
@@ -229,9 +235,9 @@ where
 /// let integrity =
 ///     cacache_ttl::write_sync("./target/example-cache", "key", b"value", Duration::from_secs(60))?;
 /// println!("{integrity}");
-/// # Ok::<(), cacache::Error>(())
+/// # Ok::<(), cacache_ttl::Error>(())
 /// ```
-pub fn write_sync<P, D, K>(cache: P, key: K, data: D, ttl: Duration) -> cacache::Result<Integrity>
+pub fn write_sync<P, D, K>(cache: P, key: K, data: D, ttl: Duration) -> Result<Integrity>
 where
     P: AsRef<Path>,
     D: AsRef<[u8]>,
@@ -247,8 +253,8 @@ where
     Ok(integrity)
 }
 
-fn entry_not_found(cache: &Path, key: &str) -> cacache::Error {
-    cacache::Error::EntryNotFound(cache.to_path_buf(), key.to_owned())
+fn entry_not_found(cache: &Path, key: &str) -> Error {
+    Error::EntryNotFoundOrExpired(cache.to_path_buf(), key.to_owned())
 }
 
 fn is_expired(metadata: &Metadata) -> bool {
@@ -370,7 +376,7 @@ mod tests {
 
         let error =
             crate::read_sync(&root, key).expect_err("expired entry should be treated as missing");
-        assert!(matches!(error, cacache::Error::EntryNotFound(_, _)));
+        assert!(matches!(error, crate::Error::EntryNotFoundOrExpired(_, _)));
         assert!(
             cacache::metadata_sync(&root, key)
                 .expect("metadata read succeeds")
@@ -400,7 +406,7 @@ mod tests {
         let error = crate::read(&root, key)
             .await
             .expect_err("expired entry should be treated as missing");
-        assert!(matches!(error, cacache::Error::EntryNotFound(_, _)));
+        assert!(matches!(error, crate::Error::EntryNotFoundOrExpired(_, _)));
         assert!(
             cacache::metadata(&root, key)
                 .await
@@ -512,7 +518,7 @@ mod tests {
 
         let mut keys = crate::list_sync(&root)
             .map(|entry| entry.map(|entry| entry.key))
-            .collect::<cacache::Result<Vec<_>>>()
+            .collect::<crate::Result<Vec<_>>>()
             .expect("cache list succeeds");
         keys.sort();
 
