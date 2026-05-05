@@ -12,7 +12,7 @@ categories = ["caching"]
 description = "TTL decorator for cacache."
 
 [dependencies]
-cacache = { version = "13.1.0", default-features = false, features = ["mmap", "tokio-runtime"] }
+cacache = { version = "13.1.0", default-features = false, features = ["tokio-runtime"] }
 miette = "5.7.0"
 thiserror = "1.0.40"
 
