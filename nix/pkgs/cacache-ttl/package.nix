@@ -5,7 +5,7 @@
 
 rustPlatform.buildRustPackage {
   pname = "cacache-ttl";
-  version = "0.2.0";
+  version = "0.2.1";
 
   __structuredAttrs = true;
 
@@ -18,5 +18,5 @@ rustPlatform.buildRustPackage {
     ];
   };
 
-  cargoHash = "sha256-G4YKF9cysW3Whr1bnAsSvqLiQEhp0kb8mZdNmrI0muw=";
+  cargoHash = "sha256-dGj8vAqgdnEUPmc/jZrNvAoFS+o6lwTjDC/k3w/NakU=";
 }
