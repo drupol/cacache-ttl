@@ -1,6 +1,6 @@
 [package]
 name = "cacache-ttl"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Pol Dellaiera <pol.dellaiera@protonmail.com>"]
 homepage = "https://github.com/drupol/cacache-ttl"
@@ -8,7 +8,7 @@ repository = "https://github.com/drupol/cacache-ttl"
 readme = "README.md"
 license = "EUPL-1.2"
 keywords = ["cache", "ttl", "decorator", "cacache"]
-categories = ["cache", "decorator", "ttl"]
+categories = ["Caching"]
 description = "TTL decorator for cacache."
 
 [dependencies]
