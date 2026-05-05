@@ -1,0 +1,18 @@
+[package]
+name = "cacache-ttl"
+version = "0.1.0"
+edition = "2024"
+authors = ["Pol Dellaiera <pol.dellaiera@protonmail.com>"]
+homepage = "https://github.com/drupol/cacache-ttl"
+repository = "https://github.com/drupol/cacache-ttl"
+readme = "README.md"
+license = "EUPL-1.2"
+keywords = ["cache", "ttl", "decorator", "cacache"]
+categories = ["cache", "decorator", "ttl"]
+description = "TTL decorator for cacache."
+
+[dependencies]
+cacache = { version = "13.1.0", default-features = false, features = ["mmap", "tokio-runtime"] }
+
+[dev-dependencies]
+tokio = { version = "1.48.0", features = ["macros", "rt-multi-thread"] }
